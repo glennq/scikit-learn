@@ -103,13 +103,14 @@ class BaseMultilayerPerceptron(six.with_metaclass(ABCMeta, BaseEstimator)):
         """
         hidden_activation = ACTIVATIONS[self.activation]
         training_time = dropout_masks is not None
+        rng = check_random_state(self.random_state)
         # Iterate over the hidden layers
         for i in range(self.n_layers_ - 1):
             if training_time and self.dropout and self.dropout[i] > 0:
                 retain_prob = 1 - self.dropout[i]
-                dropout_masks[i] = np.random.binomial(
+                dropout_masks[i] = rng.binomial(
                     1, retain_prob, activations[i].shape)
-                dropout_input = activations[i] * self._dropout_masks[i]
+                dropout_input = activations[i] * dropout_masks[i]
                 activations[i + 1] = (safe_sparse_dot(
                     dropout_input, self.coefs_[i]) / retain_prob)
             else:
