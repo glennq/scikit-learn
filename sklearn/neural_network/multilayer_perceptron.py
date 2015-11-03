@@ -242,7 +242,10 @@ class BaseMultilayerPerceptron(six.with_metaclass(ABCMeta, BaseEstimator)):
             activations, dropout_masks=dropout_masks)
 
         # Get loss
-        loss = LOSS_FUNCTIONS[self.loss](y, activations[-1])
+        loss_func_name = self.loss
+        if loss_func_name == 'log_loss' and self.out_activation_ == 'logistic':
+            loss_func_name = 'binary_log_loss'
+        loss = LOSS_FUNCTIONS[loss_func_name](y, activations[-1])
         # Add L2 regularization term to loss
         values = np.sum(
             np.array([np.dot(s.ravel(), s.ravel()) for s in self.coefs_]))
@@ -295,8 +298,6 @@ class BaseMultilayerPerceptron(six.with_metaclass(ABCMeta, BaseEstimator)):
         # Output for binary class and multi-label
         else:
             self.out_activation_ = 'logistic'
-            if self.loss == 'log_loss':
-                self.loss = 'binary_log_loss'
 
         # Initialize coefficient and intercept layers
         self.coefs_ = []
@@ -349,7 +350,7 @@ class BaseMultilayerPerceptron(six.with_metaclass(ABCMeta, BaseEstimator)):
         if np.any(np.array(hidden_layer_sizes) <= 0):
             raise ValueError("hidden_layer_sizes must be > 0, got %s." %
                              hidden_layer_sizes)
-        if len(self.dropout) != len(hidden_layer_sizes) + 1:
+        if self.dropout and (len(self.dropout) != len(hidden_layer_sizes) + 1):
             raise ValueError("Length of dropout must be n_layers - 1 = %s, "
                              "got %s." %
                              (len(hidden_layer_sizes) + 1, len(self.dropout)))
