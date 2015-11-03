@@ -349,6 +349,10 @@ class BaseMultilayerPerceptron(six.with_metaclass(ABCMeta, BaseEstimator)):
         if np.any(np.array(hidden_layer_sizes) <= 0):
             raise ValueError("hidden_layer_sizes must be > 0, got %s." %
                              hidden_layer_sizes)
+        if len(self.dropout) != len(hidden_layer_sizes) + 1:
+            raise ValueError("Length of dropout must be n_layers - 1 = %s, "
+                             "got %s." %
+                             (len(hidden_layer_sizes) + 1, len(self.dropout)))
 
         X, y = self._validate_input(X, y, incremental)
         n_samples, n_features = X.shape
@@ -434,6 +438,10 @@ class BaseMultilayerPerceptron(six.with_metaclass(ABCMeta, BaseEstimator)):
                              self.beta_2)
         if self.epsilon <= 0.0:
             raise ValueError("epsilon must be > 0, got %s." % self.max_iter)
+        if self.dropout and (np.any(np.array(self.dropout) < 0) or
+                             np.any(np.array(self.dropout) >= 1)):
+            raise ValueError("Values for `dropout` must be in [0, 1), got "
+                             "%s." % self.dropout)
 
         # raise ValueError if not registered
         supported_activations = ['logistic', 'tanh', 'relu']
