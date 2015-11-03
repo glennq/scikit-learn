@@ -109,10 +109,10 @@ class BaseMultilayerPerceptron(six.with_metaclass(ABCMeta, BaseEstimator)):
             if training_time and self.dropout and self.dropout[i] > 0:
                 retain_prob = 1 - self.dropout[i]
                 dropout_masks[i] = rng.binomial(
-                    1, retain_prob, activations[i].shape)
+                    1, retain_prob, activations[i].shape) / retain_prob
                 dropout_input = activations[i] * dropout_masks[i]
-                activations[i + 1] = (safe_sparse_dot(
-                    dropout_input, self.coefs_[i]) / retain_prob)
+                activations[i + 1] = safe_sparse_dot(dropout_input,
+                                                     self.coefs_[i])
             else:
                 activations[i + 1] = safe_sparse_dot(activations[i],
                                                      self.coefs_[i])
@@ -130,13 +130,18 @@ class BaseMultilayerPerceptron(six.with_metaclass(ABCMeta, BaseEstimator)):
         return activations
 
     def _compute_loss_grad(self, layer, n_samples, activations, deltas,
-                           coef_grads, intercept_grads):
+                           coef_grads, intercept_grads, dropout_masks):
         """Compute the gradient of loss with respect to coefs and intercept for
         specified layer.
 
         This function does backpropagation for the specified one layer.
         """
-        coef_grads[layer] = safe_sparse_dot(activations[layer].T,
+        if layer in dropout_masks:
+            activation = activations[layer] * dropout_masks[layer]
+        else:
+            activation = activations[layer]
+
+        coef_grads[layer] = safe_sparse_dot(activation.T,
                                             deltas[layer])
         coef_grads[layer] += (self.alpha * self.coefs_[layer])
         coef_grads[layer] /= n_samples
@@ -264,19 +269,20 @@ class BaseMultilayerPerceptron(six.with_metaclass(ABCMeta, BaseEstimator)):
 
         # Compute gradient for the last layer
         coef_grads, intercept_grads = self._compute_loss_grad(
-            last, n_samples, activations, deltas, coef_grads, intercept_grads)
+            last, n_samples, activations, deltas, coef_grads, intercept_grads,
+            dropout_masks)
 
         # Iterate over the hidden layers
         for i in range(self.n_layers_ - 2, 0, -1):
             deltas[i - 1] = safe_sparse_dot(deltas[i], self.coefs_[i].T)
             derivative = DERIVATIVES[self.activation]
             deltas[i - 1] *= derivative(activations[i])
-            if self.dropout and self.dropout[i - 1] > 0:
-                deltas[i - 1] *= dropout_masks[i - 1]
+            if self.dropout and self.dropout[i] > 0:
+                deltas[i - 1] *= dropout_masks[i]
 
             coef_grads, intercept_grads = self._compute_loss_grad(
                 i - 1, n_samples, activations, deltas, coef_grads,
-                intercept_grads)
+                intercept_grads, dropout_masks)
 
         return loss, coef_grads, intercept_grads
 
