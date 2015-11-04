@@ -103,12 +103,12 @@ class BaseMultilayerPerceptron(six.with_metaclass(ABCMeta, BaseEstimator)):
         """
         hidden_activation = ACTIVATIONS[self.activation]
         training_time = dropout_masks is not None
-        rng = check_random_state(self.random_state)
+
         # Iterate over the hidden layers
         for i in range(self.n_layers_ - 1):
             if training_time and self.dropout and self.dropout[i] > 0:
                 retain_prob = 1 - self.dropout[i]
-                dropout_masks[i] = rng.binomial(
+                dropout_masks[i] = self._rng.binomial(
                     1, retain_prob, activations[i].shape) / retain_prob
                 dropout_input = activations[i] * dropout_masks[i]
                 activations[i + 1] = safe_sparse_dot(dropout_input,
@@ -293,6 +293,9 @@ class BaseMultilayerPerceptron(six.with_metaclass(ABCMeta, BaseEstimator)):
         self.t_ = 0
         self.n_outputs_ = y.shape[1]
 
+        # Initialize random number generator
+        self._rng = check_random_state(self.random_state)
+
         # Compute the number of layers
         self.n_layers_ = len(layer_units)
 
@@ -311,10 +314,9 @@ class BaseMultilayerPerceptron(six.with_metaclass(ABCMeta, BaseEstimator)):
         self.intercepts_ = []
 
         for i in range(self.n_layers_ - 1):
-            rng = check_random_state(self.random_state)
             coef_init, intercept_init = self._init_coef(layer_units[i],
                                                         layer_units[i + 1],
-                                                        rng)
+                                                        self._rng)
             self.coefs_.append(coef_init)
             self.intercepts_.append(intercept_init)
 
@@ -508,7 +510,6 @@ class BaseMultilayerPerceptron(six.with_metaclass(ABCMeta, BaseEstimator)):
     def _fit_stochastic(self, X, y, activations, deltas, coef_grads,
                         intercept_grads, layer_units, incremental,
                         dropout_masks):
-        rng = check_random_state(self.random_state)
 
         if not incremental or not hasattr(self, '_optimizer'):
             params = self.coefs_ + self.intercepts_
@@ -539,7 +540,7 @@ class BaseMultilayerPerceptron(six.with_metaclass(ABCMeta, BaseEstimator)):
 
         try:
             for it in range(self.max_iter):
-                X, y = shuffle(X, y, random_state=rng)
+                X, y = shuffle(X, y, random_state=self.random_state)
                 accumulated_loss = 0.0
                 for batch_slice in gen_batches(n_samples, batch_size):
                     activations[0] = X[batch_slice]
@@ -668,7 +669,7 @@ class BaseMultilayerPerceptron(six.with_metaclass(ABCMeta, BaseEstimator)):
         """
         if self.algorithm not in _STOCHASTIC_ALGOS:
             raise AttributeError("partial_fit is only available for stochastic"
-                                 "optimization algorithms. %s is not"
+                                 " optimization algorithms. %s is not"
                                  " stochastic" % self.algorithm)
         return self._partial_fit
 
@@ -1027,7 +1028,7 @@ class MLPClassifier(BaseMultilayerPerceptron, ClassifierMixin):
         """
         if self.algorithm not in _STOCHASTIC_ALGOS:
             raise AttributeError("partial_fit is only available for stochastic"
-                                 "optimization algorithms. %s is not"
+                                 " optimization algorithms. %s is not"
                                  " stochastic" % self.algorithm)
         return self._partial_fit
 
